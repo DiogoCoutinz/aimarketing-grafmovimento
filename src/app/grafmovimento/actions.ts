@@ -370,7 +370,7 @@ export async function generateImageB(
       'https://api.kie.ai/api/v1/jobs/createTask',
       {
         model: 'bytedance/seedream-v4-edit',
-        callBackUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/grafmovimento/callback`,
+        callBackUrl: `https://aimarketing-grafmovimento.vercel.app/api/grafmovimento/callback`,
         input: {
           prompt: prompt,
           image_urls: [imageAUrl],
