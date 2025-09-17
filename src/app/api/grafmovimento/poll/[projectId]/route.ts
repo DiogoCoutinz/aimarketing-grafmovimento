@@ -37,9 +37,78 @@ export async function GET(
       })
     }
 
-    // KIE.ai não tem endpoint público de polling - só funciona via callback
-    // Apenas retornamos o status atual da DB
-    console.log('⏳ Aguardando callback do KIE.ai para task:', project.kie_task_id)
+    // POLLING MANUAL estilo VEO3 - buscar status na KIE.ai
+    if (project.kie_task_id && project.status === 'generating_image_b_waiting') {
+      console.log('🔍 Polling manual KIE.ai task:', project.kie_task_id)
+      
+      try {
+        // Endpoint para buscar info da task (similar ao veo/record-info)
+        const taskInfoResponse = await axios.post(
+          'https://api.kie.ai/api/v1/jobs/queryTaskStatus',
+          {
+            taskId: project.kie_task_id
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        )
+        
+        console.log('📦 Task info response:', JSON.stringify(taskInfoResponse.data, null, 2))
+        
+        const taskData = taskInfoResponse.data.data
+        
+        if (taskData?.state === 'success' && taskData?.resultJson) {
+          // Parse resultado
+          const result = JSON.parse(taskData.resultJson)
+          const imageUrl = result.resultUrls?.[0]
+          
+          if (imageUrl) {
+            console.log('🎉 Imagem encontrada via polling manual!')
+            
+            // Atualizar DB
+            await supabase
+              .from('grafmovimento_projects')
+              .update({
+                image_b_url: imageUrl,
+                status: 'image_b_generated',
+                error_message: null
+              })
+              .eq('id', projectId)
+            
+            return NextResponse.json({ 
+              status: 'success', 
+              image_b_url: imageUrl,
+              project_status: 'image_b_generated'
+            })
+          }
+        } else if (taskData?.state === 'fail') {
+          console.error('❌ Task falhou:', taskData.failMsg)
+          
+          await supabase
+            .from('grafmovimento_projects')
+            .update({
+              status: 'error',
+              error_message: taskData.failMsg || 'Geração falhou'
+            })
+            .eq('id', projectId)
+          
+          return NextResponse.json({ 
+            status: 'error', 
+            error: taskData.failMsg || 'Geração falhou'
+          })
+        } else {
+          console.log('⏳ Task ainda processando:', taskData?.state)
+        }
+        
+      } catch (pollError) {
+        console.error('❌ Erro no polling:', pollError)
+        // Não falha - continua tentando
+      }
+    }
 
     // Retornar status atual
     return NextResponse.json({ 

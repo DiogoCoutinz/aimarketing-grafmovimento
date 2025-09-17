@@ -89,8 +89,8 @@ export default function GrafMovimentoCreate() {
         }
       }
       
-      // Polling a cada 3 segundos
-      pollingIntervalRef.current = setInterval(pollProjectStatus, 3000)
+      // Polling a cada 30 segundos (estilo VEO3)
+      pollingIntervalRef.current = setInterval(pollProjectStatus, 30000)
       
       // Cleanup
       return () => {
