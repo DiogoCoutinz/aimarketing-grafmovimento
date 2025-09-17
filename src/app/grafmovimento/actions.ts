@@ -276,24 +276,18 @@ export async function generateAISuggestions(projectId: string) {
           role: 'system',
           content: `You are a creative AI agent specialized in image-to-video transitions. 
 
-Your task: Analyze the given image and create exactly 3 creative transformation suggestions that would make compelling video transitions.
+Your task: Analyze the given image and create exactly 3 creative transformation suggestions.
 
-Consider:
-- Colors, lighting, and mood of the image
-- Objects, people, or brands visible
-- Style and composition
-- Creative potential for dramatic transitions
+IMPORTANT: Return ONLY valid JSON in this exact format:
+{"suggestions": ["suggestion1", "suggestion2", "suggestion3"]}
 
-Generate suggestions that are:
+Each suggestion should be:
+- A complete sentence describing a visual transformation
 - Visually striking and cinematic
-- Feasible for AI image generation
-- Different from each other (variety in style/mood)
-- Specific and descriptive (not vague)
+- Different from the others (variety in style/mood)
+- Specific and descriptive
 
-Return ONLY a JSON array with exactly 3 strings. No explanations.
-
-Example format:
-["Transform into a futuristic cyberpunk scene with neon lighting", "Convert to an ethereal watercolor painting in pastel tones", "Place in a dramatic thunderstorm with lightning effects"]`
+Consider the image's colors, objects, mood, and style when creating suggestions.`
         },
         {
           role: 'user',
@@ -320,10 +314,39 @@ Example format:
     }
 
     // Parse da resposta JSON
-    const parsedResponse = JSON.parse(jsonResponse)
-    const suggestions = Array.isArray(parsedResponse) ? parsedResponse : 
-                      parsedResponse.suggestions || 
-                      Object.values(parsedResponse)
+    console.log('🔍 Raw OpenAI response:', jsonResponse)
+    
+    let suggestions: string[] = []
+    
+    try {
+      const parsedResponse = JSON.parse(jsonResponse)
+      console.log('📦 Parsed response:', parsedResponse)
+      
+      // Tentar diferentes estruturas possíveis
+      if (Array.isArray(parsedResponse)) {
+        suggestions = parsedResponse
+      } else if (parsedResponse.suggestions && Array.isArray(parsedResponse.suggestions)) {
+        suggestions = parsedResponse.suggestions
+      } else if (typeof parsedResponse === 'object') {
+        // Se for objeto, pegar os values que são strings
+        const values = Object.values(parsedResponse)
+        suggestions = values.filter((v): v is string => typeof v === 'string')
+      }
+      
+      // Se ainda não temos sugestões válidas, tentar split por padrões
+      if (suggestions.length === 0 && typeof jsonResponse === 'string') {
+        // Tentar encontrar padrões como "1.", "2.", "3." ou quebras de linha
+        const lines = jsonResponse
+          .split(/\d+\.|[\n\r]+|(?=Transform)|(?=Convert)|(?=Place)|(?=Shift)|(?=Morph)/)
+          .map(line => line.trim())
+          .filter(line => line.length > 10) // Filtrar linhas muito pequenas
+          
+        suggestions = lines.slice(0, 3)
+      }
+      
+    } catch (parseError) {
+      console.error('❌ Erro ao fazer parse JSON:', parseError)
+    }
 
     if (!Array.isArray(suggestions) || suggestions.length === 0) {
       console.warn('⚠️ Resposta OpenAI inválida, usando fallback')
