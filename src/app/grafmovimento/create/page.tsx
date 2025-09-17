@@ -59,7 +59,7 @@ export default function GrafMovimentoCreate() {
   // Polling para verificar se Imagem B ou Vídeo ficou pronto
   useEffect(() => {
     if ((currentStep === 2 && projectId && !generatedImageB && imageBMethod !== 'user_upload') ||
-        (currentStep === 3 && projectId && !generatedVideo && isGeneratingVideo)) {
+        (currentStep === 3 && projectId && !generatedVideo)) {
       console.log('🔄 Iniciando polling para verificar resultado...', { 
         step: currentStep, 
         hasImageB: !!generatedImageB, 
@@ -86,7 +86,7 @@ export default function GrafMovimentoCreate() {
             }
             
             if (result.video_url && !generatedVideo) {
-              console.log('🎉 Vídeo pronto!')
+              console.log('🎉 Vídeo pronto!', result.video_url)
               setGeneratedVideo(result.video_url)
               setIsGeneratingVideo(false)
               // Parar polling
@@ -125,7 +125,7 @@ export default function GrafMovimentoCreate() {
         }
       }
     }
-    }, [currentStep, projectId, generatedImageB, imageBMethod, generatedVideo, isGeneratingVideo])
+    }, [currentStep, projectId, generatedImageB, imageBMethod, generatedVideo])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -271,15 +271,15 @@ export default function GrafMovimentoCreate() {
       await generateVideo(projectId, selectedTransitionPrompt)
       console.log('✅ Geração de vídeo iniciada! Aguardando webhook...')
       
-      // Iniciar polling para vídeo
-      // TODO: Implementar polling para vídeo
+      // NÃO fazer setIsGeneratingVideo(false) aqui!
+      // O polling vai fazer isso quando o vídeo estiver pronto
       
     } catch (error) {
       console.error('❌ Erro ao gerar vídeo:', error)
       alert('Erro na geração de vídeo. Vê o console.')
-    } finally {
-      setIsGeneratingVideo(false)
+      setIsGeneratingVideo(false) // Só parar se houver erro
     }
+    // Remover finally - deixar o polling controlar o estado
   }
 
   // Upload da Imagem A e criar projeto
