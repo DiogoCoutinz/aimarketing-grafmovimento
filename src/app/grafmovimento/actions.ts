@@ -365,12 +365,15 @@ export async function generateImageB(
       .eq('id', projectId)
 
     // Criar task no KIE.ai COM CALLBACK
-    console.log('🚀 Criando task no KIE.ai com callback...')
+    const callbackUrl = `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aimarketing-grafmovimento.vercel.app'}/api/grafmovimento/callback`
+    console.log('🚀 Criando task no KIE.ai com callback:', callbackUrl)
+    console.log('🔑 API Key presente:', !!process.env.KIE_AI_API_KEY)
+    
     const createResponse = await axios.post(
       'https://api.kie.ai/api/v1/jobs/createTask',
       {
         model: 'bytedance/seedream-v4-edit',
-        callBackUrl: `https://aimarketing-grafmovimento.vercel.app/api/grafmovimento/callback`,
+        callBackUrl: callbackUrl,
         input: {
           prompt: prompt,
           image_urls: [imageAUrl],
