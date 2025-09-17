@@ -358,9 +358,25 @@ export async function generateImageB(
 ) {
   try {
     console.log(`🎨 Gerando Imagem B para projeto ${projectId} (fal.ai)`)
-    console.log(`📝 Prompt: ${prompt}`)
+    console.log(`📝 Prompt original: ${prompt}`)
     console.log(`🖼️ Imagem A: ${imageAUrl}`)
     console.log('🔑 FAL_KEY presente:', !!process.env.FAL_KEY)
+    
+    // Garantir que prompt é string (pode vir como array das sugestões)
+    let finalPrompt = prompt
+    if (typeof prompt !== 'string') {
+      try {
+        const parsed = JSON.parse(prompt)
+        if (Array.isArray(parsed)) {
+          finalPrompt = parsed[0] // Usar primeira sugestão se for array
+          console.log(`🔧 Convertido array para string: ${finalPrompt}`)
+        }
+      } catch (e) {
+        console.warn('⚠️ Erro ao parse prompt, usando original')
+      }
+    }
+    
+    console.log(`📝 Prompt final: ${finalPrompt}`)
     
     const supabase = await createClient()
     
@@ -375,7 +391,7 @@ export async function generateImageB(
     
     const { request_id } = await fal.queue.submit('fal-ai/bytedance/seedream/v4/edit', {
       input: {
-        prompt: prompt,
+        prompt: finalPrompt,
         image_urls: [imageAUrl],
         image_size: 'square_hd',
         max_images: 1,
