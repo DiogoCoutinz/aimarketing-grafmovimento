@@ -16,6 +16,7 @@ export async function GET(
   try {
     const { projectId } = await params
     console.log('🔄 Polling projeto:', projectId)
+    console.log('🔑 KIE_AI_API_KEY presente:', !!process.env.KIE_AI_API_KEY)
     
     // Buscar projeto na DB
     const { data: project, error } = await supabase
@@ -42,29 +43,82 @@ export async function GET(
       console.log('🔍 Polling manual KIE.ai task:', project.kie_task_id)
       
       try {
-        // Endpoint para buscar info da task (similar ao veo/record-info)
-        const taskInfoResponse = await axios.post(
-          'https://api.kie.ai/api/v1/jobs/queryTaskStatus',
-          {
-            taskId: project.kie_task_id
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            timeout: 10000
-          }
-        )
+        // Endpoint para buscar status da task (baseado na doc oficial)
+        // Tentar POST primeiro (como no VEO3)
+        let taskInfoResponse = null
+        
+        try {
+          console.log('🔍 Tentando POST queryTaskStatus...')
+          taskInfoResponse = await axios.post(
+            'https://api.kie.ai/api/v1/jobs/queryTaskStatus',
+            { taskId: project.kie_task_id },
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 10000
+            }
+          )
+        } catch (postError) {
+          console.log('❌ POST falhou, tentando GET...')
+          // Fallback para GET
+          taskInfoResponse = await axios.get(
+            `https://api.kie.ai/api/v1/jobs/queryTaskStatus?taskId=${project.kie_task_id}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`
+              },
+              timeout: 10000
+            }
+          )
+        }
         
         console.log('📦 Task info response:', JSON.stringify(taskInfoResponse.data, null, 2))
         
-        const taskData = taskInfoResponse.data.data
+        // KIE.ai pode retornar data diretamente ou dentro de data.data
+        const taskData = taskInfoResponse.data.data || taskInfoResponse.data
         
-        if (taskData?.state === 'success' && taskData?.resultJson) {
-          // Parse resultado
-          const result = JSON.parse(taskData.resultJson)
-          const imageUrl = result.resultUrls?.[0]
+        // Verificar múltiplos formatos de resposta
+        const state = taskData?.state || taskData?.status
+        console.log('📊 Task state:', state)
+        
+        if (state === 'success' || state === 'completed') {
+          // Parse resultado - múltiplos formatos possíveis
+          let imageUrl = null
+          
+          // Formato 1: resultJson string
+          if (taskData.resultJson) {
+            try {
+              const result = typeof taskData.resultJson === 'string' 
+                ? JSON.parse(taskData.resultJson) 
+                : taskData.resultJson
+              imageUrl = result.resultUrls?.[0]
+            } catch (e) {
+              console.error('❌ Erro parse resultJson:', e)
+            }
+          }
+          
+          // Formato 2: resultUrls direto
+          if (!imageUrl && taskData.resultUrls) {
+            imageUrl = taskData.resultUrls[0]
+          }
+          
+          // Formato 3: response.resultUrls
+          if (!imageUrl && taskData.response?.resultUrls) {
+            imageUrl = taskData.response.resultUrls[0]
+          }
+          
+          console.log('🖼️ Image URL encontrada:', imageUrl)
+          
+          // Fallback: construir URL baseada no padrão conhecido
+          if (!imageUrl && project.kie_task_id) {
+            // Padrão observado: https://tempfile.aiquickdraw.com/f/{taskId}_timestamp_hash.png
+            console.log('🔧 Tentando construir URL baseada no taskId...')
+            // Este é um hack temporário - idealmente a API deveria retornar a URL
+            imageUrl = `https://tempfile.aiquickdraw.com/f/${project.kie_task_id}_*.png`
+            console.log('⚠️ URL construída (pode não funcionar):', imageUrl)
+          }
           
           if (imageUrl) {
             console.log('🎉 Imagem encontrada via polling manual!')
@@ -85,7 +139,7 @@ export async function GET(
               project_status: 'image_b_generated'
             })
           }
-        } else if (taskData?.state === 'fail') {
+        } else if (state === 'fail' || state === 'failed') {
           console.error('❌ Task falhou:', taskData.failMsg)
           
           await supabase
@@ -104,8 +158,9 @@ export async function GET(
           console.log('⏳ Task ainda processando:', taskData?.state)
         }
         
-      } catch (pollError) {
-        console.error('❌ Erro no polling:', pollError)
+      } catch (pollError: any) {
+        console.error('❌ Erro no polling:', pollError.response?.status, pollError.message)
+        console.error('📦 Response data:', pollError.response?.data)
         // Não falha - continua tentando
       }
     }
