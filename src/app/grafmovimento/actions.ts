@@ -562,7 +562,7 @@ export async function generateVideo(
     
     const { request_id } = await fal.queue.submit('fal-ai/minimax/hailuo-02/standard/image-to-video', {
       input: {
-        prompt: `${transitionPrompt}. Transform from the initial scene to: ${project.image_b_prompt}`,
+        prompt: `Create a 5-second video starting with the first image and ending with the transformation: ${project.image_b_prompt}. ${transitionPrompt}. The video should smoothly transition from the initial scene to the final transformed scene.`,
         image_url: project.image_a_url,
         duration: "6",
         resolution: "768P",

@@ -56,10 +56,15 @@ export default function GrafMovimentoCreate() {
     { title: 'Generate Video', icon: Upload, description: 'AI magic happens' }
   ]
 
-  // Polling para verificar se Imagem B ficou pronta
+  // Polling para verificar se Imagem B ou Vídeo ficou pronto
   useEffect(() => {
-    if (currentStep === 2 && projectId && !generatedImageB && imageBMethod !== 'user_upload') {
-      console.log('🔄 Iniciando polling para verificar Imagem B...')
+    if ((currentStep === 2 && projectId && !generatedImageB && imageBMethod !== 'user_upload') ||
+        (currentStep === 3 && projectId && !generatedVideo && isGeneratingVideo)) {
+      console.log('🔄 Iniciando polling para verificar resultado...', { 
+        step: currentStep, 
+        hasImageB: !!generatedImageB, 
+        hasVideo: !!generatedVideo 
+      })
       
       const pollProjectStatus = async () => {
         try {
@@ -69,18 +74,31 @@ export default function GrafMovimentoCreate() {
           
           console.log('📊 Polling result:', result)
           
-          if (result.status === 'success' && result.image_b_url) {
-            console.log('🎉 Imagem B pronta!')
-            setGeneratedImageB(result.image_b_url)
+          if (result.status === 'success') {
+            if (result.image_b_url && !generatedImageB) {
+              console.log('🎉 Imagem B pronta!')
+              setGeneratedImageB(result.image_b_url)
+              // Parar polling
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
+            }
             
-            // Parar polling
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current)
-              pollingIntervalRef.current = null
+            if (result.video_url && !generatedVideo) {
+              console.log('🎉 Vídeo pronto!')
+              setGeneratedVideo(result.video_url)
+              setIsGeneratingVideo(false)
+              // Parar polling
+              if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = null
+              }
             }
           } else if (result.status === 'error') {
             console.error('❌ Erro na geração:', result.error)
-            alert(`Erro na geração da Imagem B: ${result.error}`)
+            alert(`Erro na geração: ${result.error}`)
+            setIsGeneratingVideo(false)
             
             // Parar polling
             if (pollingIntervalRef.current) {
@@ -107,7 +125,7 @@ export default function GrafMovimentoCreate() {
         }
       }
     }
-  }, [currentStep, projectId, generatedImageB, imageBMethod])
+    }, [currentStep, projectId, generatedImageB, imageBMethod, generatedVideo, isGeneratingVideo])
 
   // Cleanup on unmount
   useEffect(() => {

@@ -43,13 +43,26 @@ export async function GET(
       })
     }
 
-    // POLLING FAL.AI - buscar status da request
-    if (project.kie_task_id && project.status === 'generating_image_b_waiting') {
-      console.log('🔍 Polling fal.ai request:', project.kie_task_id)
+    // Se já tem vídeo, retornar
+    if (project.status === 'video_generated' && project.video_url) {
+      return NextResponse.json({ 
+        status: 'success', 
+        video_url: project.video_url,
+        project_status: project.status
+      })
+    }
+
+    // POLLING FAL.AI - buscar status da request (IMAGEM OU VÍDEO)
+    if (project.kie_task_id && (project.status === 'generating_image_b_waiting' || project.status === 'generating_video_waiting')) {
+      console.log('🔍 Polling fal.ai request:', project.kie_task_id, 'Status:', project.status)
       
       try {
-        // Buscar status no fal.ai
-        const status = await fal.queue.status('fal-ai/bytedance/seedream/v4/edit', {
+        // Buscar status no fal.ai (modelo depende do tipo)
+        const modelEndpoint = project.status === 'generating_video_waiting' 
+          ? 'fal-ai/minimax/hailuo-02/standard/image-to-video'
+          : 'fal-ai/bytedance/seedream/v4/edit'
+          
+        const status = await fal.queue.status(modelEndpoint, {
           requestId: project.kie_task_id,
           logs: true
         })
@@ -59,30 +72,56 @@ export async function GET(
         const statusValue = status.status as string
         if (statusValue === 'COMPLETED') {
           // Buscar resultado
-          const result = await fal.queue.result('fal-ai/bytedance/seedream/v4/edit', {
+          const result = await fal.queue.result(modelEndpoint, {
             requestId: project.kie_task_id
           })
           
-          const imageUrl = result.data.images?.[0]?.url
-          
-          if (imageUrl) {
-            console.log('🎉 Imagem encontrada via polling fal.ai!')
+          if (project.status === 'generating_video_waiting') {
+            // Resultado de vídeo
+            const videoUrl = result.data.video?.url
             
-            // Atualizar DB
-            await supabase
-              .from('grafmovimento_projects')
-              .update({
-                image_b_url: imageUrl,
-                status: 'image_b_generated',
-                error_message: null
+            if (videoUrl) {
+              console.log('🎉 Vídeo encontrado via polling fal.ai!')
+              
+              // Atualizar DB
+              await supabase
+                .from('grafmovimento_projects')
+                .update({
+                  video_url: videoUrl,
+                  status: 'video_generated',
+                  error_message: null
+                })
+                .eq('id', projectId)
+              
+              return NextResponse.json({ 
+                status: 'success', 
+                video_url: videoUrl,
+                project_status: 'video_generated'
               })
-              .eq('id', projectId)
+            }
+          } else {
+            // Resultado de imagem
+            const imageUrl = result.data.images?.[0]?.url
             
-            return NextResponse.json({ 
-              status: 'success', 
-              image_b_url: imageUrl,
-              project_status: 'image_b_generated'
-            })
+            if (imageUrl) {
+              console.log('🎉 Imagem encontrada via polling fal.ai!')
+              
+              // Atualizar DB
+              await supabase
+                .from('grafmovimento_projects')
+                .update({
+                  image_b_url: imageUrl,
+                  status: 'image_b_generated',
+                  error_message: null
+                })
+                .eq('id', projectId)
+              
+              return NextResponse.json({ 
+                status: 'success', 
+                image_b_url: imageUrl,
+                project_status: 'image_b_generated'
+              })
+            }
           }
         } else if (statusValue === 'FAILED') {
           console.error('❌ Task falhou no fal.ai')
