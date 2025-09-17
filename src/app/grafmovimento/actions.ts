@@ -371,9 +371,9 @@ export async function generateImageB(
           finalPrompt = parsed[0] // Usar primeira sugestão se for array
           console.log(`🔧 Convertido array para string: ${finalPrompt}`)
         }
-      } catch (e) {
-        console.warn('⚠️ Erro ao parse prompt, usando original')
-      }
+        } catch {
+          console.warn('⚠️ Erro ao parse prompt, usando original')
+        }
     }
     
     console.log(`📝 Prompt final: ${finalPrompt}`)
@@ -562,9 +562,8 @@ export async function generateVideo(
     
     const { request_id } = await fal.queue.submit('fal-ai/minimax/hailuo-02/standard/image-to-video', {
       input: {
-        prompt: transitionPrompt,
+        prompt: `${transitionPrompt}. Transform from the initial scene to: ${project.image_b_prompt}`,
         image_url: project.image_a_url,
-        end_image_url: project.image_b_url,
         duration: "6",
         resolution: "768P",
         prompt_optimizer: true
