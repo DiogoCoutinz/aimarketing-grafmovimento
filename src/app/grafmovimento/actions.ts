@@ -1,7 +1,6 @@
 'use server'
 
 import OpenAI from 'openai'
-import axios from 'axios'
 import { createClient } from '@/lib/supabase/server'
 import { fal } from '@fal-ai/client'
 
@@ -406,10 +405,10 @@ export async function generateImageB(
     console.log('⏳ Imagem B sendo gerada... Aguardando callback do KIE.ai')
     
     // Retornar projeto em estado de processamento
-    // O callback vai atualizar quando completar
+    // O webhook vai atualizar quando completar
     return {
       ...updatedProject,
-      taskId // Para debug, se necessário
+      request_id // Para debug, se necessário
     }
 
   } catch (error) {
@@ -432,7 +431,7 @@ export async function generateImageB(
 // Placeholder para geração de vídeo (será implementado depois)
 export async function generateVideo(
   projectId: string,
-  transitionPrompt: string
+  _transitionPrompt: string
 ) {
   try {
     console.log(`🎬 Gerando vídeo para projeto ${projectId}`)
@@ -450,7 +449,7 @@ export async function generateVideo(
 // Placeholder para adicionar áudio (será implementado depois)
 export async function addAudioToVideo(
   projectId: string,
-  audioId: string
+  _audioId: string
 ) {
   try {
     console.log(`🎵 Adicionando áudio ao vídeo do projeto ${projectId}`)

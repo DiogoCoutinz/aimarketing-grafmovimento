@@ -56,7 +56,8 @@ export async function GET(
         
         console.log('📦 fal.ai status:', JSON.stringify(status, null, 2))
         
-        if (status.status === 'COMPLETED') {
+        const statusValue = status.status as string
+        if (statusValue === 'COMPLETED') {
           // Buscar resultado
           const result = await fal.queue.result('fal-ai/bytedance/seedream/v4/edit', {
             requestId: project.kie_task_id
@@ -83,7 +84,7 @@ export async function GET(
               project_status: 'image_b_generated'
             })
           }
-        } else if (status.status === 'FAILED') {
+        } else if (statusValue === 'FAILED') {
           console.error('❌ Task falhou no fal.ai')
           
           await supabase
@@ -99,7 +100,7 @@ export async function GET(
             error: 'Geração falhou no fal.ai'
           })
         } else {
-          console.log('⏳ Task ainda processando no fal.ai:', status.status)
+          console.log('⏳ Task ainda processando no fal.ai:', statusValue)
         }
         
       } catch (pollError) {
