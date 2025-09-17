@@ -20,6 +20,18 @@ const nextConfig: NextConfig = {
         hostname: '*.kie.ai',
         port: '',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'v3b.fal.media',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.fal.media',
+        port: '',
+        pathname: '/**',
       }
     ],
   },
