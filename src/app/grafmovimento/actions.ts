@@ -444,20 +444,172 @@ export async function generateImageB(
   }
 }
 
-// Placeholder para geração de vídeo (será implementado depois)
+// Função para gerar sugestões de prompts de transição
+export async function generateTransitionPrompts(projectId: string) {
+  try {
+    console.log(`🎬 Gerando prompts de transição para projeto ${projectId}`)
+    
+    const supabase = await createClient()
+    
+    // Buscar projeto para contexto
+    const { data: project, error } = await supabase
+      .from('grafmovimento_projects')
+      .select('*')
+      .eq('id', projectId)
+      .single()
+    
+    if (error || !project) {
+      throw new Error(`Projeto não encontrado: ${error?.message}`)
+    }
+    
+    const openai = getOpenAIClient()
+    
+    const prompt = `
+Analisa estas duas imagens e o contexto da transformação:
+
+IMAGEM A: ${project.image_a_url}
+IMAGEM B: ${project.image_b_url}
+PROMPT USADO: ${project.image_b_prompt}
+
+Cria 3 prompts de transição cinematográfica para um vídeo de 6 segundos que conecte estas duas imagens de forma suave e envolvente.
+
+Foca em:
+- Movimento de câmara interessante
+- Transições visuais fluidas
+- Elementos que conectam as duas cenas
+- Atmosfera cinematográfica
+
+Retorna apenas os 3 prompts, um por linha, sem numeração.
+`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'És um especialista em direção cinematográfica e criação de vídeos. Crias prompts que resultam em transições visuais impressionantes.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 300,
+      temperature: 0.8
+    })
+
+    const suggestions = completion.choices[0]?.message?.content
+      ?.split('\n')
+      .filter(line => line.trim().length > 0)
+      .slice(0, 3) || []
+
+    console.log('✅ Sugestões de transição geradas:', suggestions)
+    return suggestions
+
+  } catch (error) {
+    console.error('❌ Erro ao gerar prompts de transição:', error)
+    
+    // Fallback suggestions
+    return [
+      'Smooth cinematic zoom out revealing the transformation with dynamic lighting',
+      'Elegant camera pan with particles and smooth morphing effects',
+      'Dramatic fade transition with swirling motion and depth of field'
+    ]
+  }
+}
+
+// Função para gerar vídeo A→B usando fal.ai minimax
 export async function generateVideo(
   projectId: string,
-  _transitionPrompt: string
+  transitionPrompt: string
 ) {
   try {
-    console.log(`🎬 Gerando vídeo para projeto ${projectId}`)
+    console.log(`🎬 Gerando vídeo para projeto ${projectId} (fal.ai minimax)`)
+    console.log(`📝 Transition prompt: ${transitionPrompt}`)
     
-    // TODO: Implementar com fal-ai/minimax/hailuo-02/standard/image-to-video
+    const supabase = await createClient()
     
-    return { success: true }
+    // Buscar projeto para obter as imagens
+    const { data: project, error: fetchError } = await supabase
+      .from('grafmovimento_projects')
+      .select('*')
+      .eq('id', projectId)
+      .single()
+    
+    if (fetchError || !project) {
+      throw new Error(`Projeto não encontrado: ${fetchError?.message}`)
+    }
+    
+    if (!project.image_a_url || !project.image_b_url) {
+      throw new Error('Imagens A e B são necessárias para gerar vídeo')
+    }
+    
+    console.log(`🖼️ Imagem A: ${project.image_a_url}`)
+    console.log(`🖼️ Imagem B: ${project.image_b_url}`)
+    console.log('🔑 FAL_KEY presente:', !!process.env.FAL_KEY)
+    
+    // Atualizar status para generating_video
+    await supabase
+      .from('grafmovimento_projects')
+      .update({ 
+        status: 'generating_video_waiting',
+        transition_prompt: transitionPrompt
+      })
+      .eq('id', projectId)
+
+    // Criar task no fal.ai minimax com webhook
+    console.log('🚀 Enviando para fal.ai minimax com webhook...')
+    
+    const { request_id } = await fal.queue.submit('fal-ai/minimax/hailuo-02/standard/image-to-video', {
+      input: {
+        prompt: transitionPrompt,
+        image_url: project.image_a_url,
+        end_image_url: project.image_b_url,
+        duration: "6",
+        resolution: "768P",
+        prompt_optimizer: true
+      },
+      webhookUrl: `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aimarketing-grafmovimento.vercel.app'}/api/grafmovimento/video-webhook`
+    })
+
+    console.log(`✅ Task minimax criada: ${request_id}`)
+
+    // Salvar video_request_id na base de dados
+    const { data: updatedProject, error } = await supabase
+      .from('grafmovimento_projects')
+      .update({
+        status: 'generating_video_waiting',
+        kie_task_id: request_id, // Reusar campo para video request_id
+        error_message: null
+      })
+      .eq('id', projectId)
+      .select('*')
+      .single()
+
+    if (error) {
+      throw new Error(`Erro ao salvar video request ID: ${error.message}`)
+    }
+
+    console.log('⏳ Vídeo sendo gerado... Aguardando webhook do minimax')
+    
+    return {
+      ...updatedProject,
+      video_request_id: request_id
+    }
 
   } catch (error) {
     console.error('❌ Erro ao gerar vídeo:', error)
+    
+    // Atualizar status para erro
+    const supabase = await createClient()
+    await supabase
+      .from('grafmovimento_projects')
+      .update({ 
+        status: 'error',
+        error_message: error instanceof Error ? error.message : 'Erro na geração do vídeo'
+      })
+      .eq('id', projectId)
+    
     throw error
   }
 }

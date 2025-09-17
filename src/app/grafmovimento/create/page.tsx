@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { motion } from 'framer-motion'
-import { createGrafMovimentoProject, saveImageBChoice, generateAISuggestions, generateImageB } from '../actions'
+import { createGrafMovimentoProject, saveImageBChoice, generateAISuggestions, generateImageB, generateTransitionPrompts, generateVideo } from '../actions'
 import { 
   Upload, 
   ArrowRight,
@@ -37,6 +37,13 @@ export default function GrafMovimentoCreate() {
   const [isGeneratingImageB, setIsGeneratingImageB] = useState(false)
   const [generatedImageB, setGeneratedImageB] = useState<string | null>(null)
   const [imageAUrl, setImageAUrl] = useState<string | null>(null)
+  
+  // Step 4 - Video Generation
+  const [transitionPrompts, setTransitionPrompts] = useState<string[]>([])
+  const [selectedTransitionPrompt, setSelectedTransitionPrompt] = useState('')
+  const [isLoadingTransitionPrompts, setIsLoadingTransitionPrompts] = useState(false)
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false)
+  const [generatedVideo, setGeneratedVideo] = useState<string | null>(null)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageBInputRef = useRef<HTMLInputElement>(null)
@@ -211,6 +218,52 @@ export default function GrafMovimentoCreate() {
     }
   }
 
+  // Load transition prompts
+  const loadTransitionPrompts = async () => {
+    if (!projectId) return
+
+    try {
+      setIsLoadingTransitionPrompts(true)
+      console.log('🎬 Carregando prompts de transição...')
+      
+      const prompts = await generateTransitionPrompts(projectId)
+      setTransitionPrompts(prompts)
+      
+    } catch (error) {
+      console.error('❌ Erro ao carregar prompts de transição:', error)
+      alert('Erro ao carregar prompts. Vê o console.')
+    } finally {
+      setIsLoadingTransitionPrompts(false)
+    }
+  }
+
+  // Handle transition prompt selection
+  const handleTransitionPrompt = (prompt: string) => {
+    setSelectedTransitionPrompt(prompt)
+  }
+
+  // Generate video
+  const handleGenerateVideo = async () => {
+    if (!projectId || !selectedTransitionPrompt) return
+
+    try {
+      setIsGeneratingVideo(true)
+      console.log('🎬 Iniciando geração de vídeo...')
+      
+      await generateVideo(projectId, selectedTransitionPrompt)
+      console.log('✅ Geração de vídeo iniciada! Aguardando webhook...')
+      
+      // Iniciar polling para vídeo
+      // TODO: Implementar polling para vídeo
+      
+    } catch (error) {
+      console.error('❌ Erro ao gerar vídeo:', error)
+      alert('Erro na geração de vídeo. Vê o console.')
+    } finally {
+      setIsGeneratingVideo(false)
+    }
+  }
+
   // Upload da Imagem A e criar projeto
   const handleUploadAndNext = async () => {
     if (!imageA) return
@@ -251,6 +304,8 @@ export default function GrafMovimentoCreate() {
         )
       case 2:
         return (generatedImageB !== null || imageBPreview !== null) && imageAPreview !== null
+      case 3:
+        return generatedVideo !== null
       default:
         return false
     }
@@ -703,12 +758,136 @@ export default function GrafMovimentoCreate() {
                     </motion.div>
                   )}
 
-                  {/* Placeholder for steps 3+ */}
-                  {currentStep > 2 && (
+                  {/* Step 4: Video Generation */}
+                  {currentStep === 3 && (
+                    <motion.div
+                      key="video-generation"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="space-y-6"
+                    >
+                      <div className="text-center">
+                        <h3 className="text-xl font-bold text-white mb-2">Generate Video Transition</h3>
+                        <p className="text-slate-400">Choose how your images will transform</p>
+                      </div>
+
+                      {/* Transition Prompts */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-lg font-medium text-white">Transition Style</h4>
+                          {transitionPrompts.length === 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={loadTransitionPrompts}
+                              disabled={isLoadingTransitionPrompts}
+                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                            >
+                              {isLoadingTransitionPrompts ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                <>
+                                  <Wand2 className="w-4 h-4 mr-2" />
+                                  Generate Ideas
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+
+                        {isLoadingTransitionPrompts && (
+                          <div className="flex items-center space-x-2 py-4">
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                            <p className="text-sm text-slate-400">AI creating transition ideas...</p>
+                          </div>
+                        )}
+
+                        {transitionPrompts.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-slate-400">AI generated transition styles:</p>
+                            {transitionPrompts.map((prompt, idx) => (
+                              <Button
+                                key={idx}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleTransitionPrompt(prompt)}
+                                className={`
+                                  w-full text-left border-slate-600 text-slate-300 hover:bg-slate-700
+                                  ${selectedTransitionPrompt === prompt ? 'bg-purple-500/20 border-purple-400' : ''}
+                                `}
+                              >
+                                {prompt}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Custom prompt */}
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-400">Or write your own:</p>
+                          <Textarea
+                            placeholder="Describe your ideal video transition..."
+                            value={selectedTransitionPrompt}
+                            onChange={(e) => setSelectedTransitionPrompt(e.target.value)}
+                            className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Generate Video Button */}
+                      {selectedTransitionPrompt && (
+                        <div className="text-center pt-4">
+                          <Button
+                            onClick={handleGenerateVideo}
+                            disabled={isGeneratingVideo}
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                          >
+                            {isGeneratingVideo ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Generating Video...
+                              </>
+                            ) : (
+                              <>
+                                <FileImage className="w-4 h-4 mr-2" />
+                                Generate Video (6s)
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Video Preview */}
+                      {generatedVideo && (
+                        <div className="mt-6">
+                          <h4 className="text-lg font-medium text-white mb-4">Your Generated Video</h4>
+                          <div className="relative rounded-xl overflow-hidden bg-slate-800">
+                            <video
+                              src={generatedVideo}
+                              controls
+                              className="w-full h-auto"
+                              style={{ maxHeight: '400px' }}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Placeholder for steps 4+ */}
+                  {currentStep > 3 && (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
                         <h3 className="text-xl font-bold text-white mb-2">Step {currentStep + 1} Coming Soon</h3>
-                        <p className="text-slate-400">Video generation will be implemented next!</p>
+                        <p className="text-slate-400">Audio mixing will be implemented next!</p>
                       </div>
                     </div>
                   )}
