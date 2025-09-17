@@ -560,13 +560,19 @@ export async function generateVideo(
     // Criar task no fal.ai minimax com webhook
     console.log('🚀 Enviando para fal.ai minimax com webhook...')
     
+    // Criar input object com end_image_url (pode não estar nos tipos ainda)
+    const videoInput = {
+      prompt: `${transitionPrompt}. Create a smooth 6-second video transition.`,
+      image_url: project.image_a_url,
+      end_image_url: project.image_b_url,
+      duration: "6",
+      prompt_optimizer: true,
+      resolution: "768P"
+    }
+
     const { request_id } = await fal.queue.submit('fal-ai/minimax/hailuo-02/standard/image-to-video', {
-      input: {
-        prompt: `Create a 6-second video starting from the initial image and transforming to: ${project.image_b_prompt}. ${transitionPrompt}. The video should smoothly transition from the first scene to the final transformed scene.`,
-        image_url: project.image_a_url,
-        duration: "6",
-        prompt_optimizer: true
-      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      input: videoInput as any, // Bypass TypeScript até API types serem atualizados
       webhookUrl: `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aimarketing-grafmovimento.vercel.app'}/api/grafmovimento/video-webhook`
     })
 
