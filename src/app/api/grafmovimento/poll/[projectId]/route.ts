@@ -158,9 +158,10 @@ export async function GET(
           console.log('⏳ Task ainda processando:', taskData?.state)
         }
         
-      } catch (pollError: any) {
-        console.error('❌ Erro no polling:', pollError.response?.status, pollError.message)
-        console.error('📦 Response data:', pollError.response?.data)
+      } catch (pollError) {
+        const error = pollError as { response?: { status?: number; data?: unknown }; message?: string }
+        console.error('❌ Erro no polling:', error.response?.status, error.message)
+        console.error('📦 Response data:', error.response?.data)
         // Não falha - continua tentando
       }
     }
