@@ -562,10 +562,9 @@ export async function generateVideo(
     
     const { request_id } = await fal.queue.submit('fal-ai/minimax/hailuo-02/standard/image-to-video', {
       input: {
-        prompt: `Create a 5-second video starting with the first image and ending with the transformation: ${project.image_b_prompt}. ${transitionPrompt}. The video should smoothly transition from the initial scene to the final transformed scene.`,
+        prompt: `Create a 6-second video starting from the initial image and transforming to: ${project.image_b_prompt}. ${transitionPrompt}. The video should smoothly transition from the first scene to the final transformed scene.`,
         image_url: project.image_a_url,
         duration: "6",
-        resolution: "768P",
         prompt_optimizer: true
       },
       webhookUrl: `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aimarketing-grafmovimento.vercel.app'}/api/grafmovimento/video-webhook`
