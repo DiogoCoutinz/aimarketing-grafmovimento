@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import axios from 'axios'
+import { fal } from '@fal-ai/client'
+
+// Configurar fal.ai
+fal.config({
+  credentials: process.env.FAL_KEY || ''
+})
 
 // Usar Service Role Key
 const supabase = createClient(
@@ -38,90 +43,29 @@ export async function GET(
       })
     }
 
-    // POLLING MANUAL estilo VEO3 - buscar status na KIE.ai
+    // POLLING FAL.AI - buscar status da request
     if (project.kie_task_id && project.status === 'generating_image_b_waiting') {
-      console.log('🔍 Polling manual KIE.ai task:', project.kie_task_id)
+      console.log('🔍 Polling fal.ai request:', project.kie_task_id)
       
       try {
-        // Endpoint para buscar status da task (baseado na doc oficial)
-        // Tentar POST primeiro (como no VEO3)
-        let taskInfoResponse = null
+        // Buscar status no fal.ai
+        const status = await fal.queue.status('fal-ai/bytedance/seedream/v4/edit', {
+          requestId: project.kie_task_id,
+          logs: true
+        })
         
-        try {
-          console.log('🔍 Tentando POST queryTaskStatus...')
-          taskInfoResponse = await axios.post(
-            'https://api.kie.ai/api/v1/jobs/queryTaskStatus',
-            { taskId: project.kie_task_id },
-            {
-              headers: {
-                'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              timeout: 10000
-            }
-          )
-        } catch (postError) {
-          console.log('❌ POST falhou, tentando GET...')
-          // Fallback para GET
-          taskInfoResponse = await axios.get(
-            `https://api.kie.ai/api/v1/jobs/queryTaskStatus?taskId=${project.kie_task_id}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`
-              },
-              timeout: 10000
-            }
-          )
-        }
+        console.log('📦 fal.ai status:', JSON.stringify(status, null, 2))
         
-        console.log('📦 Task info response:', JSON.stringify(taskInfoResponse.data, null, 2))
-        
-        // KIE.ai pode retornar data diretamente ou dentro de data.data
-        const taskData = taskInfoResponse.data.data || taskInfoResponse.data
-        
-        // Verificar múltiplos formatos de resposta
-        const state = taskData?.state || taskData?.status
-        console.log('📊 Task state:', state)
-        
-        if (state === 'success' || state === 'completed') {
-          // Parse resultado - múltiplos formatos possíveis
-          let imageUrl = null
+        if (status.status === 'COMPLETED') {
+          // Buscar resultado
+          const result = await fal.queue.result('fal-ai/bytedance/seedream/v4/edit', {
+            requestId: project.kie_task_id
+          })
           
-          // Formato 1: resultJson string
-          if (taskData.resultJson) {
-            try {
-              const result = typeof taskData.resultJson === 'string' 
-                ? JSON.parse(taskData.resultJson) 
-                : taskData.resultJson
-              imageUrl = result.resultUrls?.[0]
-            } catch (e) {
-              console.error('❌ Erro parse resultJson:', e)
-            }
-          }
-          
-          // Formato 2: resultUrls direto
-          if (!imageUrl && taskData.resultUrls) {
-            imageUrl = taskData.resultUrls[0]
-          }
-          
-          // Formato 3: response.resultUrls
-          if (!imageUrl && taskData.response?.resultUrls) {
-            imageUrl = taskData.response.resultUrls[0]
-          }
-          
-          console.log('🖼️ Image URL encontrada:', imageUrl)
-          
-          // Fallback: construir URL baseada no padrão conhecido
-          if (!imageUrl && project.kie_task_id) {
-            // Padrão observado: https://tempfile.aiquickdraw.com/f/{taskId}_timestamp_hash.png
-            console.log('🔧 Tentando construir URL baseada no taskId...')
-            // Este é um hack temporário - idealmente a API deveria retornar a URL
-            imageUrl = `https://tempfile.aiquickdraw.com/f/${project.kie_task_id}_*.png`
-            console.log('⚠️ URL construída (pode não funcionar):', imageUrl)
-          }
+          const imageUrl = result.data.images?.[0]?.url
           
           if (imageUrl) {
-            console.log('🎉 Imagem encontrada via polling manual!')
+            console.log('🎉 Imagem encontrada via polling fal.ai!')
             
             // Atualizar DB
             await supabase
@@ -139,29 +83,28 @@ export async function GET(
               project_status: 'image_b_generated'
             })
           }
-        } else if (state === 'fail' || state === 'failed') {
-          console.error('❌ Task falhou:', taskData.failMsg)
+        } else if (status.status === 'FAILED') {
+          console.error('❌ Task falhou no fal.ai')
           
           await supabase
             .from('grafmovimento_projects')
             .update({
               status: 'error',
-              error_message: taskData.failMsg || 'Geração falhou'
+              error_message: 'Geração falhou no fal.ai'
             })
             .eq('id', projectId)
           
           return NextResponse.json({ 
             status: 'error', 
-            error: taskData.failMsg || 'Geração falhou'
+            error: 'Geração falhou no fal.ai'
           })
         } else {
-          console.log('⏳ Task ainda processando:', taskData?.state)
+          console.log('⏳ Task ainda processando no fal.ai:', status.status)
         }
         
       } catch (pollError) {
         const error = pollError as { response?: { status?: number; data?: unknown }; message?: string }
-        console.error('❌ Erro no polling:', error.response?.status, error.message)
-        console.error('📦 Response data:', error.response?.data)
+        console.error('❌ Erro no polling fal.ai:', error.message)
         // Não falha - continua tentando
       }
     }

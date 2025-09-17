@@ -3,6 +3,12 @@
 import OpenAI from 'openai'
 import axios from 'axios'
 import { createClient } from '@/lib/supabase/server'
+import { fal } from '@fal-ai/client'
+
+// Configurar fal.ai
+fal.config({
+  credentials: process.env.FAL_KEY || ''
+})
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -352,57 +358,41 @@ export async function generateImageB(
   prompt: string
 ) {
   try {
-    console.log(`🎨 Gerando Imagem B para projeto ${projectId}`)
+    console.log(`🎨 Gerando Imagem B para projeto ${projectId} (fal.ai)`)
     console.log(`📝 Prompt: ${prompt}`)
     console.log(`🖼️ Imagem A: ${imageAUrl}`)
+    console.log('🔑 FAL_KEY presente:', !!process.env.FAL_KEY)
     
     const supabase = await createClient()
     
     // Atualizar status para generating_image_b
     await supabase
       .from('grafmovimento_projects')
-      .update({ status: 'generating_image_b' })
+      .update({ status: 'generating_image_b_waiting' })
       .eq('id', projectId)
 
-    // Criar task no KIE.ai SEM CALLBACK (polling manual estilo VEO3)
-    console.log('🚀 Criando task no KIE.ai (polling manual)...')
-    console.log('🔑 API Key presente:', !!process.env.KIE_AI_API_KEY)
+    // Criar task no fal.ai com webhook
+    console.log('🚀 Enviando para fal.ai com webhook...')
     
-    const createResponse = await axios.post(
-      'https://api.kie.ai/api/v1/jobs/createTask',
-      {
-        model: 'bytedance/seedream-v4-edit',
-        // callBackUrl removido - usamos polling manual
-        input: {
-          prompt: prompt,
-          image_urls: [imageAUrl],
-          image_size: 'square_hd',
-          image_resolution: '2K',
-          max_images: 1
-        }
+    const { request_id } = await fal.queue.submit('fal-ai/bytedance/seedream/v4/edit', {
+      input: {
+        prompt: prompt,
+        image_urls: [imageAUrl],
+        image_size: 'square_hd',
+        max_images: 1,
+        enable_safety_checker: true
       },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.KIE_AI_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 30000
-      }
-    )
+      webhookUrl: `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://aimarketing-grafmovimento.vercel.app'}/api/grafmovimento/fal-webhook`
+    })
 
-    const taskId = createResponse.data.data?.taskId
-    if (!taskId) {
-      throw new Error('Task ID não retornado pelo KIE.ai')
-    }
+    console.log(`✅ Task fal.ai criada: ${request_id}`)
 
-    console.log(`✅ Task criada com callback: ${taskId}`)
-
-    // Salvar taskId na base de dados e marcar como processando
+    // Salvar request_id na base de dados
     const { data: updatedProject, error } = await supabase
       .from('grafmovimento_projects')
       .update({
         status: 'generating_image_b_waiting',
-        kie_task_id: taskId, // Guardar taskId para matching no callback
+        kie_task_id: request_id, // Usar request_id do fal.ai
         error_message: null // Limpar erros anteriores
       })
       .eq('id', projectId)
