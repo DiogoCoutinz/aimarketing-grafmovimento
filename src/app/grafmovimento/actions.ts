@@ -274,20 +274,28 @@ export async function generateAISuggestions(projectId: string) {
       messages: [
         {
           role: 'system',
-          content: `You are a creative AI agent specialized in image-to-video transitions. 
+          content: `You are an expert creative director specializing in AI image transformations and video transitions.
 
-Your task: Analyze the given image and create exactly 3 creative transformation suggestions.
+CONTEXT: You'll analyze an image that will be transformed using Seedream V4 (image-to-image AI model) to create a destination image for video generation.
 
-IMPORTANT: Return ONLY valid JSON in this exact format:
-{"suggestions": ["suggestion1", "suggestion2", "suggestion3"]}
+TASK: Create exactly 3 transformation suggestions that are:
+1. TECHNICALLY VIABLE for AI image generation (avoid impossible physics, complex multi-step changes)
+2. VISUALLY DRAMATIC yet achievable (lighting changes, style transfers, environment shifts work well)
+3. DIVERSE in approach (one realistic, one stylistic, one fantastical)
 
-Each suggestion should be:
-- A complete sentence describing a visual transformation
-- Visually striking and cinematic
-- Different from the others (variety in style/mood)
-- Specific and descriptive
+OPTIMIZATION RULES:
+- Focus on SINGLE major transformation (not multiple simultaneous changes)
+- Emphasize lighting, atmosphere, and mood changes (AI excels at these)
+- Include specific visual elements: colors, textures, lighting direction
+- Avoid complex object manipulation or fine details
+- Consider the original composition and work WITH it, not against it
 
-Consider the image's colors, objects, mood, and style when creating suggestions.`
+RETURN FORMAT: {"suggestions": ["suggestion1", "suggestion2", "suggestion3"]}
+
+EXAMPLES OF GOOD SUGGESTIONS:
+- "Transform into a dramatic noir scene with stark black and white contrast and moody shadows"
+- "Shift to a vibrant cyberpunk aesthetic with neon purple and blue lighting effects"
+- "Convert to a dreamy watercolor painting style with soft pastel tones and ethereal atmosphere"`
         },
         {
           role: 'user',
@@ -385,7 +393,7 @@ export async function generateImageB(
     console.log(`🖼️ Imagem A: ${imageAUrl}`)
     console.log('🔑 FAL_KEY presente:', !!process.env.FAL_KEY)
     
-    // Garantir que prompt é string (pode vir como array das sugestões)
+    // Garantir que prompt é string e otimizar para Seedream V4
     let finalPrompt = prompt
     if (typeof prompt !== 'string') {
       try {
@@ -399,7 +407,11 @@ export async function generateImageB(
         }
     }
     
-    console.log(`📝 Prompt final: ${finalPrompt}`)
+    // Otimizar prompt para Seedream V4 Edit (melhor qualidade e controle)
+    const optimizedPrompt = `${finalPrompt}, high quality, detailed, professional photography, sharp focus, good lighting, realistic textures, maintain composition, preserve main subject`
+    
+    console.log(`📝 Original prompt: ${finalPrompt}`)
+    console.log(`🎯 Optimized prompt: ${optimizedPrompt}`)
     
     const supabase = await createClient()
     
@@ -414,7 +426,7 @@ export async function generateImageB(
     
     const { request_id } = await fal.queue.submit('fal-ai/bytedance/seedream/v4/edit', {
       input: {
-        prompt: finalPrompt,
+        prompt: optimizedPrompt,
         image_urls: [imageAUrl],
         image_size: 'square_hd',
         max_images: 1,
@@ -488,29 +500,40 @@ export async function generateTransitionPrompts(projectId: string) {
     const openai = getOpenAIClient()
     
     const prompt = `
-Analisa estas duas imagens e o contexto da transformação:
+CONTEXT: Create video transition prompts for Minimax Hailuo-02 (image-to-video AI model)
+DURATION: 6 seconds
+IMAGES: A→B transformation
+TRANSFORMATION: ${project.image_b_prompt}
 
-IMAGEM A: ${project.image_a_url}
-IMAGEM B: ${project.image_b_url}
-PROMPT USADO: ${project.image_b_prompt}
+TECHNICAL REQUIREMENTS for Minimax optimization:
+- Start with camera movement description (zoom, pan, dolly, orbit)
+- Include temporal progression (gradual, sudden, rhythmic)
+- Specify visual effects that work well with AI video generation
+- Focus on smooth, continuous motion rather than cuts or jumps
 
-Cria 3 prompts de transição cinematográfica para um vídeo de 6 segundos que conecte estas duas imagens de forma suave e envolvente.
+PROMPT STRUCTURE: [Camera Movement] + [Visual Transition] + [Atmosphere/Mood] + [Technical Quality]
 
-Foca em:
-- Movimento de câmara interessante
-- Transições visuais fluidas
-- Elementos que conectam as duas cenas
-- Atmosfera cinematográfica
+Create 3 distinct video transition prompts:
 
-Retorna apenas os 3 prompts, um por linha, sem numeração.
-`
+1. CINEMATIC APPROACH: Professional camera work with dramatic movement
+2. SMOOTH MORPH: Focus on seamless transformation between states  
+3. DYNAMIC ENERGY: Bold, energetic transition with visual flair
+
+Each prompt should be 15-25 words, technically precise, and optimized for AI video generation.
+
+EXAMPLES:
+- "Smooth dolly zoom out revealing transformation, cinematic lighting transition, professional color grading, fluid motion"
+- "Gentle camera orbit around subject as gradual morphing occurs, soft atmospheric particles, dreamy transition"
+- "Dynamic push-in with swirling energy effects, dramatic lighting shift, bold cinematic transformation"
+
+Return only the 3 prompts, one per line, no numbering:`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'És um especialista em direção cinematográfica e criação de vídeos. Crias prompts que resultam em transições visuais impressionantes.'
+          content: 'You are a technical director specializing in AI video generation and prompt optimization. You understand the capabilities and limitations of image-to-video models like Minimax Hailuo-02. Your prompts consistently produce smooth, cinematic results with optimal motion and visual quality.'
         },
         {
           role: 'user',
@@ -583,13 +606,16 @@ export async function generateVideo(
     // Criar task no fal.ai minimax com webhook
     console.log('🚀 Enviando para fal.ai minimax com webhook...')
     
+    // Otimizar prompt para Minimax Hailuo-02
+    const optimizedPrompt = `${transitionPrompt}, high quality cinematic video, smooth motion, professional color grading, no artifacts, stable camera work, seamless transformation, 6 second duration`
+    
     // Criar input object com end_image_url (pode não estar nos tipos ainda)
     const videoInput = {
-      prompt: `${transitionPrompt}. Create a smooth 6-second video transition.`,
+      prompt: optimizedPrompt,
       image_url: project.image_a_url,
       end_image_url: project.image_b_url,
       duration: "6",
-      prompt_optimizer: true,
+      prompt_optimizer: true, // Let Minimax optimize further
       resolution: "768P"
     }
 
