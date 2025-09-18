@@ -187,13 +187,23 @@ export default function GrafMovimentoPage() {
               Transform your static images into dynamic stories with AI-powered video generation.
             </p>
             
-            <Link href="/grafmovimento/create">
-              <Button size="lg" className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white text-xl px-12 py-6 rounded-full border-0 shadow-2xl shadow-purple-500/25">
-                <Zap className="mr-3 h-6 w-6" />
-                Start Creating
-                <ArrowRight className="ml-3 h-6 w-6" />
-              </Button>
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+              <Link href="/grafmovimento/create">
+                <Button size="lg" className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white text-xl px-12 py-6 rounded-full border-0 shadow-2xl shadow-purple-500/25">
+                  <Zap className="mr-3 h-6 w-6" />
+                  Start Creating
+                  <ArrowRight className="ml-3 h-6 w-6" />
+                </Button>
+              </Link>
+              
+              <Link href="/grafmovimento/templates">
+                <Button size="lg" variant="outline" className="border-2 border-gradient-to-r from-pink-500 to-orange-500 text-white text-xl px-12 py-6 rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 hover:from-pink-500/20 hover:to-orange-500/20 shadow-xl">
+                  <Sparkles className="mr-3 h-6 w-6" />
+                  Use Viral Templates
+                  <ArrowRight className="ml-3 h-6 w-6" />
+                </Button>
+              </Link>
+            </div>
             
             <div className="flex items-center justify-center mt-8 space-x-6 text-sm text-gray-400">
               <div className="flex items-center">
