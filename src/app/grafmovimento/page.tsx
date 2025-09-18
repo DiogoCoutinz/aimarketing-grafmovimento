@@ -197,7 +197,7 @@ export default function GrafMovimentoPage() {
               </Link>
               
               <Link href="/grafmovimento/templates">
-                <Button size="lg" variant="outline" className="border-2 border-gradient-to-r from-pink-500 to-orange-500 text-white text-xl px-12 py-6 rounded-full bg-gradient-to-r from-pink-500/10 to-orange-500/10 hover:from-pink-500/20 hover:to-orange-500/20 shadow-xl">
+                <Button size="lg" className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 text-white text-xl px-12 py-6 rounded-full border-0 shadow-2xl shadow-pink-500/25">
                   <Sparkles className="mr-3 h-6 w-6" />
                   Use Viral Templates
                   <ArrowRight className="ml-3 h-6 w-6" />
